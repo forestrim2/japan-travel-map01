@@ -12,7 +12,6 @@ import {
   useMapEvents,
   CircleMarker,
 } from "react-leaflet";
-import { supabase } from "./lib/supabaseClient";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -59,30 +58,6 @@ function loadState() {
 function saveState(s) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(s));
-  } catch {}
-}
-const REMOTE_DOC_ID = "default";
-async function loadRemoteState() {
-  if (!supabase) return null;
-  try {
-    const { data, error } = await supabase
-      .from("app_state")
-      .select("state")
-      .eq("id", REMOTE_DOC_ID)
-      .maybeSingle();
-    if (error) return null;
-    return data?.state || null;
-  } catch {
-    return null;
-  }
-}
-async function saveRemoteState(state) {
-  if (!supabase) return;
-  try {
-    await supabase.from("app_state").upsert(
-      { id: REMOTE_DOC_ID, state, updated_at: new Date().toISOString() },
-      { onConflict: "id" }
-    );
   } catch {}
 }
 function uid() {
@@ -231,7 +206,7 @@ function Modal({ title, onClose, children, footer }) {
 
 function AddCategoryModal({ cities, onAddCity, onAddTheme, onClose }) {
   const [pick, setPick] = useState("city");
-  const [name, setName] = useState(prefill?.name || "");
+  const [name, setName] = useState("");
   const [cityId, setCityId] = useState(cities[0]?.id || "");
 
   return (
@@ -297,7 +272,6 @@ function PinModal({
   initialCityId,
   initialThemeId,
   initialLatLng,
-  prefill,
   onSave,
   onClose,
 }) {
@@ -312,20 +286,13 @@ function PinModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cityId]);
 
-  const [name, setName] = useState(prefill?.name || "");
-  const [jpAddr, setJpAddr] = useState(prefill?.jpAddr || "");
-  const [krAddr, setKrAddr] = useState(prefill?.krAddr || "");
+  const [name, setName] = useState("");
+  const [jpAddr, setJpAddr] = useState("");
+  const [krAddr, setKrAddr] = useState("");
   const [memo, setMemo] = useState("");
   const [links, setLinks] = useState([""]);
   const [photos, setPhotos] = useState([]);
   const [photoIndex, setPhotoIndex] = useState(0);
-
-  useEffect(() => {
-    if (!prefill) return;
-    setName((v) => v || prefill.name || "");
-    setJpAddr((v) => v || prefill.jpAddr || "");
-    setKrAddr((v) => v || prefill.krAddr || "");
-  }, [prefill]);
 
   const latlngText = initialLatLng
     ? fmtLatLng(initialLatLng.lat, initialLatLng.lng)
@@ -563,7 +530,6 @@ function Sidebar({
   recentSearches,
   onPickSearchResult,
   onDeleteRecent,
-  onClose,
 }) {
   const countCity = (cityId) => pins.filter((p) => p.cityId === cityId).length;
   const countTheme = (themeId) => pins.filter((p) => p.themeId === themeId).length;
@@ -599,7 +565,7 @@ function Sidebar({
           <button className="searchBtn" onClick={() => onRunMapSearch?.()} disabled={searching}>
             {searching ? "..." : "검색"}
           </button>
-          <button className="iconBtn" title="지우기" onClick={() => { setMapQuery(""); onClose?.(); }} style={{marginLeft:4}}>
+          <button className="iconBtn" title="닫기" onClick={() => onClose?.()} style={{marginLeft:4}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
@@ -763,7 +729,7 @@ function Sidebar({
                           <div style={{ minWidth: 0 }}>
                             <div className="name">{p.name || "(이름 없음)"}</div>
                             <div className="sub">
-                              {p.krAddr || p.jpAddr || ""}
+                              {p.krAddr || p.jpAddr || fmtLatLng(p.latlng.lat, p.latlng.lng)}
                             </div>
                           </div>
                           <div className="right">
@@ -828,8 +794,8 @@ const deleteRecentSearch = (term) => {
   setRecentSearches((prev) => prev.filter((x) => x !== t));
 };
 
-const runMapSearch = async (overrideTerm) => {
-  const q = String(overrideTerm ?? mapQuery).trim();
+const runMapSearch = async () => {
+  const q = mapQuery.trim();
   if (!q) return;
   setSearching(true);
   try {
@@ -879,42 +845,6 @@ const pickSearchResult = (r) => {
   const [pinModalOpen, setPinModalOpen] = useState(false);
   const [draftLatLng, setDraftLatLng] = useState(null);
   const [pinPrefill, setPinPrefill] = useState({ name: "", jpAddr: "", krAddr: "" });
-  const remoteReadyRef = useRef(false);
-  const remoteSaveTimerRef = useRef(null);
-
-  const applyState = (s) => {
-    if (!s) return;
-    if (s.cities) setCities(s.cities);
-    if (s.themesByCity) setThemesByCity(s.themesByCity);
-    if (s.pins) setPins(s.pins);
-    if (s.expandedCityIds) setExpandedCityIds(s.expandedCityIds);
-    if (typeof s.selectedCityId === "string") setSelectedCityId(s.selectedCityId);
-    if (typeof s.selectedThemeId === "string") setSelectedThemeId(s.selectedThemeId);
-  };
-
-  useEffect(() => {
-    (async () => {
-      const remote = await loadRemoteState();
-      if (remote) applyState(remote);
-      remoteReadyRef.current = true;
-
-      if (supabase) {
-        supabase
-          .channel("app_state_sync")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "app_state", filter: `id=eq.${REMOTE_DOC_ID}` },
-            (payload) => {
-              const next = payload?.new?.state;
-              if (next) applyState(next);
-            }
-          )
-          .subscribe();
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
 
   const [flyTarget, setFlyTarget] = useState(null);
   const [flyZoom, setFlyZoom] = useState(null);
@@ -924,23 +854,14 @@ const pickSearchResult = (r) => {
   const [searchFocus, setSearchFocus] = useState(null); // {lat,lng,name}
 
   useEffect(() => {
-    const state = {
+    saveState({
       cities,
       themesByCity,
       pins,
       expandedCityIds,
       selectedCityId,
       selectedThemeId,
-        };
-    saveState(state);
-
-    if (!remoteReadyRef.current) return;
-    if (!supabase) return;
-
-    if (remoteSaveTimerRef.current) clearTimeout(remoteSaveTimerRef.current);
-    remoteSaveTimerRef.current = setTimeout(() => {
-      saveRemoteState(state);
-    }, 800);
+    });
   }, [cities, themesByCity, pins, expandedCityIds, selectedCityId, selectedThemeId]);
 
   const toggleCityExpanded = (id) => {
@@ -1134,13 +1055,13 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
           center={DEFAULT_CENTER}
           zoom={DEFAULT_ZOOM}
           minZoom={5}
-          maxZoom={18}
+          maxZoom={19}
           maxBounds={KJ_BOUNDS}
           maxBoundsViscosity={1.0}
           worldCopyJump={false}
         >
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution="&copy; OpenStreetMap contributors"
           />
 
@@ -1166,7 +1087,7 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
                   <Popup>
                     <div style={{ fontWeight: 900 }}>{p.name || "(이름 없음)"}</div>
                     <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-                      {p.krAddr || p.jpAddr || ""}
+                      {p.krAddr || p.jpAddr || fmtLatLng(p.latlng.lat, p.latlng.lng)}
                     </div>
                   </Popup>
                 </Marker>
