@@ -295,16 +295,8 @@ html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Ro
   border:1px solid var(--line);
   border-radius:999px;
   background:#fff;
-  font-weight:800;
+  font-size:12px;
+  font-weight:700;
   cursor:pointer;
 }
-.recentChip .x{
-  width:18px;height:18px;
-  display:flex;align-items:center;justify-content:center;
-  border-radius:999px;
-  border:1px solid var(--line);
-  background:#fff;
-  font-size:12px;
-  line-height:1;
-}
-.recentChip .x:hover{ background:#f3f4f6; }
+.recentChip 

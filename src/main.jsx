@@ -630,19 +630,7 @@ function Sidebar({
                   {recentSearches.map((t) => (
                     <div key={t} className="recentChip" onClick={() => { setMapQuery(t); setTimeout(() => onRunMapSearch?.(t), 0); }}>
                       <span style={{maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{t}</span>
-                      <button
-                        className="x"
-                        title="삭제"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // delete only this item
-                          // we can't setRecentSearches here (in Sidebar), so call handler if provided
-                          onDeleteRecent?.(t);
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
+</div>
                   ))}
                 </div>
               </div>
@@ -825,8 +813,8 @@ const deleteRecentSearch = (term) => {
 const clearMapSearch = () => {
   setMapQuery("");
   setSearchResults([]);
-  setRecentSearches([]);
-  setSearching(false);
+  // keep recentSearches
+setSearching(false);
   setSearchFocus(null);
 };
 
