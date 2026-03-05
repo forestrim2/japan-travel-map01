@@ -581,19 +581,11 @@ function Sidebar({
               }
             }}
           />
-          <button
-            className="iconBtn"
-            title="초기화"
-            onClick={() => onClearSearch?.()}
-            style={{ marginLeft: 4 }}
-          >
-            ×
-          </button>
 
           <button className="searchBtn" onClick={() => onRunMapSearch?.()} disabled={searching}>
             {searching ? "..." : "검색"}
           </button>
-          <button className="iconBtn" title="닫기" onClick={() => onClose?.()} style={{marginLeft:4}}>
+          <button className="iconBtn" title="초기화" onClick={() => onClearSearch?.()} style={{marginLeft:4}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
@@ -628,10 +620,29 @@ function Sidebar({
                 <div className="sectionTitle" style={{margin: "6px 0"}}>최근 검색</div>
                 <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
                   {recentSearches.map((t) => (
-                    <div key={t} className="recentChip" onClick={() => { setMapQuery(t); setTimeout(() => onRunMapSearch?.(t), 0); }}>
-                      <span style={{maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{t}</span>
-</div>
-                  ))}
+  <div
+    key={t}
+    className="recentChip"
+    onClick={() => {
+      setMapQuery(t);
+      setTimeout(() => onRunMapSearch?.(t), 0);
+    }}
+  >
+    <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      {t}
+    </span>
+    <button
+      className="chipX"
+      title="최근검색 삭제"
+      onClick={(e) => {
+        e.stopPropagation();
+        onDeleteRecent?.(t);
+      }}
+    >
+      ×
+    </button>
+  </div>
+))}
                 </div>
               </div>
             ) : null}
