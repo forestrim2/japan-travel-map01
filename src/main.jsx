@@ -618,7 +618,7 @@ function Sidebar({
           </button>
         </div>
 
-        {(searchResults?.length || recentSearches?.length) ? (
+        {(hasSearched || searching || recentSearches?.length) ? (
           <div style={{marginTop:10}}>
             {(hasSearched && !searching) ? (
               <div>
@@ -866,19 +866,34 @@ const runMapSearch = async (term) => {
   if (!q) return;
 
   const buildQueryVariants = (s) => {
-    const base = String(s || "").trim();
-    const variants = [base];
+    const base0 = String(s || "").trim();
+    if (!base0) return [];
+    const normSpaces = (x) => String(x || "").replace(/\s+/g, " ").trim();
 
-    // Example: "대영로243번길" -> "대영로 243번길"
-    const spacedDigits = base.replace(/([가-힣])([0-9])/g, "$1 $2");
-    if (spacedDigits !== base) variants.push(spacedDigits);
+    const variants = [];
+    const push = (v) => {
+      const vv = normSpaces(v);
+      if (vv && !variants.includes(vv)) variants.push(vv);
+    };
 
-    // Remove common administrative suffix for fallback (do NOT over-normalize).
-    const noGwang = base.replace(/광역시/g, "시").replace(/특별시/g, "시");
-    if (noGwang !== base) variants.push(noGwang);
+    push(base0);
 
-    // Dedup while preserving order
-    return Array.from(new Set(variants)).slice(0, 3);
+    // Space between Hangul and digits: "대영로243번길" -> "대영로 243번길"
+    push(base0.replace(/([가-힣])([0-9])/g, "$1 $2"));
+
+    // Space between digits and Hangul: "243번길" -> "243 번길"
+    push(base0.replace(/([0-9])([가-힣])/g, "$1 $2"));
+
+    // Apply both directions (handles "로243번길" -> "로 243 번길")
+    push(base0.replace(/([가-힣])([0-9])/g, "$1 $2").replace(/([0-9])([가-힣])/g, "$1 $2"));
+
+    // Normalize common administrative suffix for fallback
+    push(base0.replace(/광역시/g, "시").replace(/특별시/g, "시"));
+
+    // Remove commas (sometimes pasted addresses include punctuation)
+    push(base0.replace(/,/g, " "));
+
+    return variants.slice(0, 6);
   };
 
   const queriesToTry = buildQueryVariants(q);
@@ -908,10 +923,10 @@ const fetchJson = async (url) => {
 const nominatimBase =
   "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=100&addressdetails=1&namedetails=1&extratags=1&dedupe=1";
 
-const nominatimUrl = (qTry, bounded) =>
+const nominatimUrl = (qTry, bounded, codes = "kr,jp") =>
   nominatimBase +
   "&accept-language=ko" +
-  "&countrycodes=kr,jp" +
+  "&countrycodes=" + encodeURIComponent(codes) +
   (bounded ? "&bounded=1&viewbox=" + encodeURIComponent(viewbox) : "") +
   "&q=" +
   encodeURIComponent(qTry);
@@ -932,13 +947,20 @@ let usedQuery = q;
 for (const qTry of queriesToTry) {
   usedQuery = qTry;
 
+  const isJPQuery = /[\u3040-\u30ff\u3400-\u9fff]/.test(qTry);
+  const isKRQuery = /[가-힣]/.test(qTry);
+  const codesOrder = isJPQuery ? ["jp", "kr,jp"] : (isKRQuery ? ["kr", "kr,jp"] : ["kr,jp"]);
+
   // 1) Nominatim bounded -> unbounded
   try {
-    let data = await fetchJson(nominatimUrl(qTry, true));
-    raw = Array.isArray(data) ? data : [];
-    if (!raw.length) {
-      data = await fetchJson(nominatimUrl(qTry, false));
+    for (const codes of codesOrder) {
+      let data = await fetchJson(nominatimUrl(qTry, true, codes));
       raw = Array.isArray(data) ? data : [];
+      if (!raw.length) {
+        data = await fetchJson(nominatimUrl(qTry, false, codes));
+        raw = Array.isArray(data) ? data : [];
+      }
+      if (raw.length) break;
     }
   } catch {
     raw = [];
