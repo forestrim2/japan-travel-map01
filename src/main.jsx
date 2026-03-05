@@ -50,16 +50,41 @@ function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+
+    // Backward/forward compatible: ensure expected shape exists.
+    if (parsed && typeof parsed === "object") {
+      return {
+        cities: Array.isArray(parsed.cities) ? parsed.cities : undefined,
+        themesByCity: parsed.themesByCity && typeof parsed.themesByCity === "object" ? parsed.themesByCity : undefined,
+        pins: Array.isArray(parsed.pins) ? parsed.pins : undefined,
+        expandedCityIds: Array.isArray(parsed.expandedCityIds) ? parsed.expandedCityIds : undefined,
+        selectedCityId: typeof parsed.selectedCityId === "string" ? parsed.selectedCityId : undefined,
+        selectedThemeId: typeof parsed.selectedThemeId === "string" ? parsed.selectedThemeId : undefined,
+        recentSearches: Array.isArray(parsed.recentSearches) ? parsed.recentSearches : undefined,
+      };
+    }
+    return null;
   } catch {
     return null;
   }
 }
+
 function saveState(s) {
+  try {
+    // Safety backup to prevent data loss across deployments / schema tweaks.
+    const prev = localStorage.getItem(LS_KEY);
+    if (prev) {
+      localStorage.setItem(LS_KEY + "_backup", prev);
+      localStorage.setItem(LS_KEY + "_backup_at", String(Date.now()));
+    }
+  } catch {}
+
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(s));
   } catch {}
 }
+
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
@@ -861,7 +886,7 @@ const fetchJson = async (url) => {
 };
 
 const nominatimBase =
-  "https://nominatim.openstreetmap.org/search?format=json&limit=30&addressdetails=1&namedetails=1";
+  "https://nominatim.openstreetmap.org/search?format=json&limit=50&addressdetails=1&namedetails=1&extratags=1&dedupe=1";
 
 const nominatimUrl = (bounded) =>
   nominatimBase +
@@ -881,7 +906,7 @@ if (!raw.length) {
 
 if (!raw.length) {
   const photonUrl =
-    "https://photon.komoot.io/api/?limit=30&lang=ko" +
+    "https://photon.komoot.io/api/?limit=50&lang=ko" +
     "&bbox=" +
     encodeURIComponent(bbox.join(",")) +
     "&q=" +
@@ -912,7 +937,17 @@ if (!raw.length) {
 
     const filtered = raw.filter((r) => {
       const cc = String(r?.address?.country_code || "").toLowerCase();
-      return cc === "kr" || cc === "jp";
+      if (cc === "kr" || cc === "jp") return true;
+
+      // Some providers omit country_code; keep only points inside our KR/JP bounds.
+      const lat = Number(r?.lat);
+      const lng = Number(r?.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+      try {
+        return KJ_BOUNDS.contains(L.latLng(lat, lng));
+      } catch {
+        return false;
+      }
     });
 
     const results = filtered.map((r) => {
