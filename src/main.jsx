@@ -272,6 +272,7 @@ function PinModal({
   initialCityId,
   initialThemeId,
   initialLatLng,
+  prefill,
   onSave,
   onClose,
 }) {
@@ -286,13 +287,21 @@ function PinModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cityId]);
 
-  const [name, setName] = useState("");
-  const [jpAddr, setJpAddr] = useState("");
-  const [krAddr, setKrAddr] = useState("");
+  const [name, setName] = useState(prefill?.name || "");
+  const [jpAddr, setJpAddr] = useState(prefill?.jpAddr || "");
+  const [krAddr, setKrAddr] = useState(prefill?.krAddr || "");
   const [memo, setMemo] = useState("");
   const [links, setLinks] = useState([""]);
   const [photos, setPhotos] = useState([]);
   const [photoIndex, setPhotoIndex] = useState(0);
+
+  useEffect(() => {
+    if (!prefill) return;
+    if (!name && prefill.name) setName(prefill.name);
+    if (!krAddr && prefill.krAddr) setKrAddr(prefill.krAddr);
+    if (!jpAddr && prefill.jpAddr) setJpAddr(prefill.jpAddr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.name, prefill?.krAddr, prefill?.jpAddr]);
 
   const latlngText = initialLatLng
     ? fmtLatLng(initialLatLng.lat, initialLatLng.lng)
@@ -405,7 +414,16 @@ function PinModal({
       <div className="field">
         <label>구글(로드뷰 검색용)</label>
         <div className="linkRow">
-          <input value={krAddr || jpAddr} readOnly />
+          <input
+            value={
+              (krAddr || jpAddr)
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    krAddr || jpAddr
+                  )}`
+                : ""
+            }
+            readOnly
+          />
           <button
             className="smallBtn"
             onClick={() => openGoogleByAddress(krAddr || jpAddr)}
@@ -1056,7 +1074,7 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
           center={DEFAULT_CENTER}
           zoom={DEFAULT_ZOOM}
           minZoom={5}
-          maxZoom={19}
+          maxZoom={18}
           maxBounds={KJ_BOUNDS}
           maxBoundsViscosity={1.0}
           worldCopyJump={false}
@@ -1064,6 +1082,8 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
           <TileLayer
             url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution="&copy; OpenStreetMap contributors"
+            maxNativeZoom={19}
+            maxZoom={19}
           />
 
           <FlyTo target={flyTarget} zoom={flyZoom} />
@@ -1187,6 +1207,7 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
               (themesByCity[selectedCityId || cities[0]?.id || ""]?.[0]?.id || "")
             }
             initialLatLng={draftLatLng}
+            prefill={pinPrefill}
             onSave={savePin}
             onClose={() => setPinModalOpen(false)}
           />
