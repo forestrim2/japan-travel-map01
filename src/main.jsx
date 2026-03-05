@@ -910,7 +910,6 @@ if (!raw.length) {
     .filter((r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)));
 }
 
-    const raw = Array.isArray(data) ? data : [];
     const filtered = raw.filter((r) => {
       const cc = String(r?.address?.country_code || "").toLowerCase();
       return cc === "kr" || cc === "jp";
