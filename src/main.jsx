@@ -548,6 +548,7 @@ function Sidebar({
   recentSearches,
   onPickSearchResult,
   onDeleteRecent,
+  onClearSearch,
 }) {
   const countCity = (cityId) => pins.filter((p) => p.cityId === cityId).length;
   const countTheme = (themeId) => pins.filter((p) => p.themeId === themeId).length;
@@ -580,6 +581,15 @@ function Sidebar({
               }
             }}
           />
+          <button
+            className="iconBtn"
+            title="초기화"
+            onClick={() => onClearSearch?.()}
+            style={{ marginLeft: 4 }}
+          >
+            ×
+          </button>
+
           <button className="searchBtn" onClick={() => onRunMapSearch?.()} disabled={searching}>
             {searching ? "..." : "검색"}
           </button>
@@ -595,7 +605,7 @@ function Sidebar({
             {searchResults?.length ? (
               <div>
                 <div className="sectionTitle" style={{margin: "6px 0"}}>검색 결과</div>
-                <div className="list" style={{gap:6}}>
+                <div className="list" style={{gap:6, maxHeight:240, overflowY:"auto"}}>
                   {searchResults.map((r) => (
                     <div key={r.id} className="item" onClick={() => onPickSearchResult?.(r)}>
                       <div style={{minWidth:0}}>
@@ -812,19 +822,49 @@ const deleteRecentSearch = (term) => {
   setRecentSearches((prev) => prev.filter((x) => x !== t));
 };
 
-const runMapSearch = async () => {
-  const q = mapQuery.trim();
+const clearMapSearch = () => {
+  setMapQuery("");
+  setSearchResults([]);
+  setRecentSearches([]);
+  setSearching(false);
+  setSearchFocus(null);
+};
+
+const runMapSearch = async (term) => {
+  const qRaw = (term ?? mapQuery).trim();
+  const q = String(qRaw || "").trim();
   if (!q) return;
+  // keep input in sync when called from recent chips
+  if (term != null) setMapQuery(q);
+
   setSearching(true);
   try {
+    // Restrict to Korea + Japan only, support Korean queries for Japan places.
+    // Use bounded viewbox to reduce irrelevant global results.
+    const viewbox = [
+      120.0, 46.5, // left, top
+      150.5, 30.0, // right, bottom
+    ].join(",");
+
     const url =
-      "https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&q=" +
-      encodeURIComponent(q);
+      "https://nominatim.openstreetmap.org/search?format=json&limit=20&addressdetails=1" +
+      "&accept-language=ko" +
+      "&countrycodes=kr,jp" +
+      "&bounded=1&viewbox=" + encodeURIComponent(viewbox) +
+      "&q=" + encodeURIComponent(q);
+
     const res = await fetch(url, {
       headers: { "Accept-Language": "ko" },
     });
     const data = await res.json();
-    const results = (Array.isArray(data) ? data : []).map((r) => {
+
+    const raw = Array.isArray(data) ? data : [];
+    const filtered = raw.filter((r) => {
+      const cc = String(r?.address?.country_code || "").toLowerCase();
+      return cc === "kr" || cc === "jp";
+    });
+
+    const results = filtered.map((r) => {
       const displayName = String(r.display_name || "");
       const first = displayName.split(",")[0]?.trim() || displayName || q;
       return {
@@ -833,8 +873,10 @@ const runMapSearch = async () => {
         displayName,
         lat: Number(r.lat),
         lng: Number(r.lon),
+        countryCode: String(r?.address?.country_code || "").toLowerCase(),
       };
     });
+
     setSearchResults(results);
     setRecentSearches((prev) => {
       const next = [q, ...prev.filter((x) => x !== q)];
@@ -1065,6 +1107,7 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
         recentSearches={recentSearches}
         onPickSearchResult={pickSearchResult}
         onDeleteRecent={deleteRecentSearch}
+        onClearSearch={clearMapSearch}
       />
 
       <div className="mapWrap">
