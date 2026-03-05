@@ -864,6 +864,25 @@ const runMapSearch = async (term) => {
   const qRaw = (term ?? mapQuery).trim();
   const q = String(qRaw || "").trim();
   if (!q) return;
+
+  const buildQueryVariants = (s) => {
+    const base = String(s || "").trim();
+    const variants = [base];
+
+    // Example: "대영로243번길" -> "대영로 243번길"
+    const spacedDigits = base.replace(/([가-힣])([0-9])/g, "$1 $2");
+    if (spacedDigits !== base) variants.push(spacedDigits);
+
+    // Remove common administrative suffix for fallback (do NOT over-normalize).
+    const noGwang = base.replace(/광역시/g, "시").replace(/특별시/g, "시");
+    if (noGwang !== base) variants.push(noGwang);
+
+    // Dedup while preserving order
+    return Array.from(new Set(variants)).slice(0, 3);
+  };
+
+  const queriesToTry = buildQueryVariants(q);
+
   // keep input in sync when called from recent chips
   if (term != null) setMapQuery(q);
 
@@ -885,56 +904,92 @@ const fetchJson = async (url) => {
   return await res.json();
 };
 
-const nominatimBase =
-  "https://nominatim.openstreetmap.org/search?format=json&limit=50&addressdetails=1&namedetails=1&extratags=1&dedupe=1";
 
-const nominatimUrl = (bounded) =>
+const nominatimBase =
+  "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=100&addressdetails=1&namedetails=1&extratags=1&dedupe=1";
+
+const nominatimUrl = (qTry, bounded) =>
   nominatimBase +
   "&accept-language=ko" +
   "&countrycodes=kr,jp" +
   (bounded ? "&bounded=1&viewbox=" + encodeURIComponent(viewbox) : "") +
   "&q=" +
-  encodeURIComponent(q);
+  encodeURIComponent(qTry);
 
-let data = await fetchJson(nominatimUrl(true));
-let raw = Array.isArray(data) ? data : [];
+const photonUrl = (qTry) =>
+  "https://photon.komoot.io/api/?limit=80&lang=ko" +
+  "&bbox=" +
+  encodeURIComponent(bbox.join(",")) +
+  "&q=" +
+  encodeURIComponent(qTry);
 
-if (!raw.length) {
-  data = await fetchJson(nominatimUrl(false));
-  raw = Array.isArray(data) ? data : [];
+const mapsCoUrl = (qTry) =>
+  "https://geocode.maps.co/search?q=" + encodeURIComponent(qTry) + "&format=json";
+
+let raw = [];
+let usedQuery = q;
+
+for (const qTry of queriesToTry) {
+  usedQuery = qTry;
+
+  // 1) Nominatim bounded -> unbounded
+  try {
+    let data = await fetchJson(nominatimUrl(qTry, true));
+    raw = Array.isArray(data) ? data : [];
+    if (!raw.length) {
+      data = await fetchJson(nominatimUrl(qTry, false));
+      raw = Array.isArray(data) ? data : [];
+    }
+  } catch {
+    raw = [];
+  }
+
+  // 2) Photon fallback (often better for Korean road-name addresses)
+  if (!raw.length) {
+    try {
+      const pdata = await fetchJson(photonUrl(qTry));
+      const feats = Array.isArray(pdata?.features) ? pdata.features : [];
+      raw = feats
+        .map((f) => {
+          const lon = f?.geometry?.coordinates?.[0];
+          const lat = f?.geometry?.coordinates?.[1];
+          const p = f?.properties || {};
+          const name = p.name || "";
+          const street = [p.street, p.housenumber].filter(Boolean).join(" ").trim();
+          const place = [p.city, p.state].filter(Boolean).join(", ").trim();
+          const display_name =
+            (name ? name : street || qTry) + (place ? ", " + place : "");
+          return {
+            lat,
+            lon,
+            display_name,
+            address: { country_code: p.countrycode },
+          };
+        })
+        .filter((r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)));
+    } catch {
+      raw = [];
+    }
+  }
+
+  // 3) maps.co fallback (sometimes returns results when Nominatim throttles)
+  if (!raw.length) {
+    try {
+      const mdata = await fetchJson(mapsCoUrl(qTry));
+      const arr = Array.isArray(mdata) ? mdata : [];
+      raw = arr.map((r) => ({
+        lat: r.lat,
+        lon: r.lon,
+        display_name: r.display_name || r.display_name,
+        address: r.address || { country_code: (r?.address?.country_code || "").toLowerCase() },
+      }));
+    } catch {
+      raw = [];
+    }
+  }
+
+  if (raw.length) break;
 }
-
-if (!raw.length) {
-  const photonUrl =
-    "https://photon.komoot.io/api/?limit=50&lang=ko" +
-    "&bbox=" +
-    encodeURIComponent(bbox.join(",")) +
-    "&q=" +
-    encodeURIComponent(q);
-
-  const pdata = await fetchJson(photonUrl);
-  const feats = Array.isArray(pdata?.features) ? pdata.features : [];
-
-  raw = feats
-    .map((f) => {
-      const lon = f?.geometry?.coordinates?.[0];
-      const lat = f?.geometry?.coordinates?.[1];
-      const p = f?.properties || {};
-      const name = p.name || "";
-      const street = [p.street, p.housenumber].filter(Boolean).join(" ").trim();
-      const place = [p.city, p.state].filter(Boolean).join(", ").trim();
-      const display_name =
-        (name ? name : street || q) + (place ? ", " + place : "");
-      return {
-        lat,
-        lon,
-        display_name,
-        address: { country_code: p.countrycode },
-      };
-    })
-    .filter((r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)));
-}
-
     const filtered = raw.filter((r) => {
       const cc = String(r?.address?.country_code || "").toLowerCase();
       if (cc === "kr" || cc === "jp") return true;
@@ -952,7 +1007,7 @@ if (!raw.length) {
 
     const results = filtered.map((r) => {
       const displayName = String(r.display_name || "");
-      const first = displayName.split(",")[0]?.trim() || displayName || q;
+      const first = displayName.split(",")[0]?.trim() || displayName || usedQuery;
       return {
         id: uid(),
         name: first,
