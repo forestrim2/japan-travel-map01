@@ -763,7 +763,7 @@ function Sidebar({
 }
 
 function App() {
-  const loaded = loadState();
+  const loaded = useMemo(() => loadState(), []);
 
   const [cities, setCities] = useState(
     loaded?.cities || [
@@ -786,7 +786,7 @@ function App() {
 const [mapQuery, setMapQuery] = useState("");
 const [searching, setSearching] = useState(false);
 const [searchResults, setSearchResults] = useState([]); // {id,name,displayName,lat,lng}
-const [recentSearches, setRecentSearches] = useState([]); // strings
+ const [recentSearches, setRecentSearches] = useState(loaded?.recentSearches || []); // strings
 
 const deleteRecentSearch = (term) => {
   const t = String(term || "").trim();
@@ -861,8 +861,9 @@ const pickSearchResult = (r) => {
       expandedCityIds,
       selectedCityId,
       selectedThemeId,
+      recentSearches,
     });
-  }, [cities, themesByCity, pins, expandedCityIds, selectedCityId, selectedThemeId]);
+  }, [cities, themesByCity, pins, expandedCityIds, selectedCityId, selectedThemeId, recentSearches]);
 
   const toggleCityExpanded = (id) => {
     setExpandedCityIds((prev) =>
