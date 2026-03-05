@@ -913,6 +913,7 @@ const viewbox = [
 ].join(",");
 
 const bbox = [120.0, 30.0, 150.5, 46.5]; // left,bottom,right,top
+const bboxJP = [122.0, 24.0, 154.5, 46.5]; // Japan focus bbox
 
 const fetchJson = async (url) => {
   const res = await fetch(url, { headers: { "Accept-Language": "ko" } });
@@ -938,6 +939,13 @@ const photonUrl = (qTry) =>
   "&q=" +
   encodeURIComponent(qTry);
 
+const photonUrlJP = (qTry) =>
+  "https://photon.komoot.io/api/?limit=80&lang=ko" +
+  "&bbox=" +
+  encodeURIComponent(bboxJP.join(",")) +
+  "&q=" +
+  encodeURIComponent(qTry);
+
 const mapsCoUrl = (qTry) =>
   "https://geocode.maps.co/search?q=" + encodeURIComponent(qTry) + "&format=json";
 
@@ -949,48 +957,103 @@ for (const qTry of queriesToTry) {
 
   const isJPQuery = /[\u3040-\u30ff\u3400-\u9fff]/.test(qTry);
   const isKRQuery = /[가-힣]/.test(qTry);
-  const codesOrder = isJPQuery ? ["jp", "kr,jp"] : (isKRQuery ? ["kr", "kr,jp"] : ["kr,jp"]);
+  const jpHint = /도쿄|도쿄도|오사카|교토|후쿠오카|삿포로|나고야|요코하마|고베|나라\b|오키나와|하코네|유후인|벳푸|히로시마|가나자와|가고시마|나가사키|센다이|니가타|구마모토|시즈오카|가와사키|치바|아이치|홋카이도|일본|東京|大阪|京都|福岡|札幌|名古屋|横浜|神戸|奈良|沖縄|箱根|由布院|別府|広島/.test(qTry);
+  const jpMode = isJPQuery || jpHint;
+  const codesOrder = isJPQuery ? ["jp", "kr,jp"] : (jpHint ? ["jp", "kr,jp"] : (isKRQuery ? ["kr", "kr,jp"] : ["kr,jp"]));
 
-  // 1) Nominatim bounded -> unbounded
-  try {
-    for (const codes of codesOrder) {
-      let data = await fetchJson(nominatimUrl(qTry, true, codes));
-      raw = Array.isArray(data) ? data : [];
-      if (!raw.length) {
-        data = await fetchJson(nominatimUrl(qTry, false, codes));
-        raw = Array.isArray(data) ? data : [];
+  // Japan place search: try Photon(JP-bbox) first (better for POI/venues), then Nominatim.
+  if (jpMode) {
+    // 1) Photon JP first
+    if (!raw.length) {
+      try {
+        const url = "https://photon.komoot.io/api/?limit=120&lang=ko" +
+          "&bbox=" + encodeURIComponent(bboxJP.join(",")) +
+          "&q=" + encodeURIComponent(qTry);
+        const pdata = await fetchJson(url);
+        const feats = Array.isArray(pdata?.features) ? pdata.features : [];
+        raw = feats
+          .map((f) => {
+            const lon = f?.geometry?.coordinates?.[0];
+            const lat = f?.geometry?.coordinates?.[1];
+            const p = f?.properties || {};
+            const name = p.name || "";
+            const street = [p.street, p.housenumber].filter(Boolean).join(" ").trim();
+            const place = [p.city, p.state].filter(Boolean).join(", ").trim();
+            const display_name =
+              (name ? name : street || qTry) + (place ? ", " + place : "");
+            return {
+              lat,
+              lon,
+              display_name,
+              address: { country_code: p.countrycode },
+            };
+          })
+          .filter((r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)));
+      } catch {
+        raw = [];
       }
-      if (raw.length) break;
     }
-  } catch {
-    raw = [];
-  }
 
-  // 2) Photon fallback (often better for Korean road-name addresses)
-  if (!raw.length) {
+    // 2) Nominatim (JP first, bounded -> unbounded)
+    if (!raw.length) {
+      try {
+        for (const codes of codesOrder) {
+          let data = await fetchJson(nominatimUrl(qTry, true, codes));
+          raw = Array.isArray(data) ? data : [];
+          if (!raw.length) {
+            data = await fetchJson(nominatimUrl(qTry, false, codes));
+            raw = Array.isArray(data) ? data : [];
+          }
+          if (raw.length) break;
+        }
+      } catch {
+        raw = [];
+      }
+    }
+  } else {
+    // Non-Japan: keep Nominatim first, then Photon.
+    // 1) Nominatim bounded -> unbounded
     try {
-      const pdata = await fetchJson(photonUrl(qTry));
-      const feats = Array.isArray(pdata?.features) ? pdata.features : [];
-      raw = feats
-        .map((f) => {
-          const lon = f?.geometry?.coordinates?.[0];
-          const lat = f?.geometry?.coordinates?.[1];
-          const p = f?.properties || {};
-          const name = p.name || "";
-          const street = [p.street, p.housenumber].filter(Boolean).join(" ").trim();
-          const place = [p.city, p.state].filter(Boolean).join(", ").trim();
-          const display_name =
-            (name ? name : street || qTry) + (place ? ", " + place : "");
-          return {
-            lat,
-            lon,
-            display_name,
-            address: { country_code: p.countrycode },
-          };
-        })
-        .filter((r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)));
+      for (const codes of codesOrder) {
+        let data = await fetchJson(nominatimUrl(qTry, true, codes));
+        raw = Array.isArray(data) ? data : [];
+        if (!raw.length) {
+          data = await fetchJson(nominatimUrl(qTry, false, codes));
+          raw = Array.isArray(data) ? data : [];
+        }
+        if (raw.length) break;
+      }
     } catch {
       raw = [];
+    }
+
+    // 2) Photon fallback
+    if (!raw.length) {
+      try {
+        const url = photonUrl(qTry);
+        const pdata = await fetchJson(url);
+        const feats = Array.isArray(pdata?.features) ? pdata.features : [];
+        raw = feats
+          .map((f) => {
+            const lon = f?.geometry?.coordinates?.[0];
+            const lat = f?.geometry?.coordinates?.[1];
+            const p = f?.properties || {};
+            const name = p.name || "";
+            const street = [p.street, p.housenumber].filter(Boolean).join(" ").trim();
+            const place = [p.city, p.state].filter(Boolean).join(", ").trim();
+            const display_name =
+              (name ? name : street || qTry) + (place ? ", " + place : "");
+            return {
+              lat,
+              lon,
+              display_name,
+              address: { country_code: p.countrycode },
+            };
+          })
+          .filter((r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)));
+      } catch {
+        raw = [];
+      }
     }
   }
 
