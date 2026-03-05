@@ -545,6 +545,7 @@ function Sidebar({
   onRunMapSearch,
   searching,
   searchResults,
+  hasSearched,
   recentSearches,
   onPickSearchResult,
   onDeleteRecent,
@@ -594,24 +595,28 @@ function Sidebar({
 
         {(searchResults?.length || recentSearches?.length) ? (
           <div style={{marginTop:10}}>
-            {searchResults?.length ? (
+            {(hasSearched && !searching) ? (
               <div>
                 <div className="sectionTitle" style={{margin: "6px 0"}}>검색 결과</div>
-                <div className="list" style={{gap:6, maxHeight:240, overflowY:"auto"}}>
-                  {searchResults.map((r) => (
-                    <div key={r.id} className="item" onClick={() => onPickSearchResult?.(r)}>
-                      <div style={{minWidth:0}}>
-                        <div className="name">{r.name}</div>
-                        <div className="sub">{r.displayName}</div>
+                {searchResults?.length ? (
+                  <div className="list" style={{gap:6, maxHeight:240, overflowY:"auto"}}>
+                    {searchResults.map((r) => (
+                      <div key={r.id} className="item" onClick={() => onPickSearchResult?.(r)}>
+                        <div style={{minWidth:0}}>
+                          <div className="name">{r.name}</div>
+                          <div className="sub">{r.displayName}</div>
+                        </div>
+                        <div className="right">
+                          <button className="smallBtn" onClick={(e) => { e.stopPropagation(); onPickSearchResult?.(r); }}>
+                            이동
+                          </button>
+                        </div>
                       </div>
-                      <div className="right">
-                        <button className="smallBtn" onClick={(e) => { e.stopPropagation(); onPickSearchResult?.(r); }}>
-                          이동
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="emptyHint">검색 결과 없음</div>
+                )}
               </div>
             ) : null}
 
@@ -812,6 +817,7 @@ function App() {
 // Map search (Nominatim) + recent searches (max 5)
 const [mapQuery, setMapQuery] = useState("");
 const [searching, setSearching] = useState(false);
+const [hasSearched, setHasSearched] = useState(false);
 const [searchResults, setSearchResults] = useState([]); // {id,name,displayName,lat,lng}
  const [recentSearches, setRecentSearches] = useState(loaded?.recentSearches || []); // strings
 
@@ -837,25 +843,72 @@ const runMapSearch = async (term) => {
   if (term != null) setMapQuery(q);
 
   setSearching(true);
+  setHasSearched(true);
   try {
     // Restrict to Korea + Japan only, support Korean queries for Japan places.
-    // Use bounded viewbox to reduce irrelevant global results.
-    const viewbox = [
-      120.0, 46.5, // left, top
-      150.5, 30.0, // right, bottom
-    ].join(",");
+// First try bounded search (faster/cleaner). If no results, retry unbounded.
+// If still none, fall back to Photon (often better for detailed street addresses).
+const viewbox = [
+  120.0, 46.5, // left, top
+  150.5, 30.0, // right, bottom
+].join(",");
 
-    const url =
-      "https://nominatim.openstreetmap.org/search?format=json&limit=20&addressdetails=1" +
-      "&accept-language=ko" +
-      "&countrycodes=kr,jp" +
-      "&bounded=1&viewbox=" + encodeURIComponent(viewbox) +
-      "&q=" + encodeURIComponent(q);
+const bbox = [120.0, 30.0, 150.5, 46.5]; // left,bottom,right,top
 
-    const res = await fetch(url, {
-      headers: { "Accept-Language": "ko" },
-    });
-    const data = await res.json();
+const fetchJson = async (url) => {
+  const res = await fetch(url, { headers: { "Accept-Language": "ko" } });
+  return await res.json();
+};
+
+const nominatimBase =
+  "https://nominatim.openstreetmap.org/search?format=json&limit=30&addressdetails=1&namedetails=1";
+
+const nominatimUrl = (bounded) =>
+  nominatimBase +
+  "&accept-language=ko" +
+  "&countrycodes=kr,jp" +
+  (bounded ? "&bounded=1&viewbox=" + encodeURIComponent(viewbox) : "") +
+  "&q=" +
+  encodeURIComponent(q);
+
+let data = await fetchJson(nominatimUrl(true));
+let raw = Array.isArray(data) ? data : [];
+
+if (!raw.length) {
+  data = await fetchJson(nominatimUrl(false));
+  raw = Array.isArray(data) ? data : [];
+}
+
+if (!raw.length) {
+  const photonUrl =
+    "https://photon.komoot.io/api/?limit=30&lang=ko" +
+    "&bbox=" +
+    encodeURIComponent(bbox.join(",")) +
+    "&q=" +
+    encodeURIComponent(q);
+
+  const pdata = await fetchJson(photonUrl);
+  const feats = Array.isArray(pdata?.features) ? pdata.features : [];
+
+  raw = feats
+    .map((f) => {
+      const lon = f?.geometry?.coordinates?.[0];
+      const lat = f?.geometry?.coordinates?.[1];
+      const p = f?.properties || {};
+      const name = p.name || "";
+      const street = [p.street, p.housenumber].filter(Boolean).join(" ").trim();
+      const place = [p.city, p.state].filter(Boolean).join(", ").trim();
+      const display_name =
+        (name ? name : street || q) + (place ? ", " + place : "");
+      return {
+        lat,
+        lon,
+        display_name,
+        address: { country_code: p.countrycode },
+      };
+    })
+    .filter((r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)));
+}
 
     const raw = Array.isArray(data) ? data : [];
     const filtered = raw.filter((r) => {
@@ -1103,6 +1156,7 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
         onRunMapSearch={runMapSearch}
         searching={searching}
         searchResults={searchResults}
+        hasSearched={hasSearched}
         recentSearches={recentSearches}
         onPickSearchResult={pickSearchResult}
         onDeleteRecent={deleteRecentSearch}

@@ -311,3 +311,11 @@ html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Ro
 .chipX:hover{ color:#111; }
 
 .recentChip 
+
+.emptyHint{
+  padding:10px 12px;
+  border:1px dashed rgba(0,0,0,0.15);
+  border-radius:10px;
+  font-size:13px;
+  color: rgba(0,0,0,0.65);
+}
