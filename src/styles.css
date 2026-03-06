@@ -1,10 +1,43 @@
 html,body,#root{
 height:100%;
 margin:0;
-font-family:system-ui, -apple-system, sans-serif;
+font-family:system-ui;
 }
 
 .app{
 height:100%;
+}
+
+.modalOverlay{
+position:fixed;
+top:0;
+left:0;
+right:0;
+bottom:0;
+background:rgba(0,0,0,0.4);
+display:flex;
+align-items:center;
+justify-content:center;
+}
+
+.modal{
+background:white;
+padding:20px;
+border-radius:10px;
+width:300px;
+display:flex;
+flex-direction:column;
+gap:10px;
+}
+
+.modal input,
+.modal textarea{
 width:100%;
+padding:8px;
+}
+
+.modalBtns{
+display:flex;
+gap:10px;
+justify-content:flex-end;
 }

@@ -1,12 +1,13 @@
-import React from "react"
+import React, { useState } from "react"
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet"
 import L from "leaflet"
+import PinModal from "./PinModal"
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png"
+  iconRetinaUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png"
 })
 
 function AddPinHandler({onAddPin}){
@@ -15,6 +16,8 @@ function AddPinHandler({onAddPin}){
     click(e){
       const pin={
         id:Date.now(),
+        name:"새 장소",
+        memo:"",
         lat:e.latlng.lat,
         lng:e.latlng.lng
       }
@@ -25,9 +28,12 @@ function AddPinHandler({onAddPin}){
   return null
 }
 
-export default function MapView({pins,onAddPin}){
+export default function MapView({pins,onAddPin,onUpdatePin}){
+
+  const [selected,setSelected]=useState(null)
 
   return (
+    <>
     <MapContainer
       center={[35.6804,139.769]}
       zoom={5}
@@ -42,9 +48,26 @@ export default function MapView({pins,onAddPin}){
       <AddPinHandler onAddPin={onAddPin}/>
 
       {pins.map(pin=>(
-        <Marker key={pin.id} position={[pin.lat,pin.lng]} />
+        <Marker
+          key={pin.id}
+          position={[pin.lat,pin.lng]}
+          eventHandlers={{click:()=>setSelected(pin)}}
+        />
       ))}
 
     </MapContainer>
+
+    {selected && (
+      <PinModal
+        pin={selected}
+        onClose={()=>setSelected(null)}
+        onSave={(p)=>{
+          onUpdatePin(p)
+          setSelected(p)
+        }}
+      />
+    )}
+
+    </>
   )
 }
