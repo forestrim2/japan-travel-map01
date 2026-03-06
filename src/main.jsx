@@ -7,7 +7,6 @@ import {
   MapContainer,
   TileLayer,
   Marker,
-  Popup,
   useMap,
   useMapEvents,
   CircleMarker,
@@ -297,8 +296,8 @@ function PinModal({
   initialCityId,
   initialThemeId,
   initialLatLng,
-  initialPin,
   prefill,
+  initialData,
   onSave,
   onClose,
 }) {
@@ -313,30 +312,21 @@ function PinModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cityId]);
 
-  const [name, setName] = useState(initialPin?.name || prefill?.name || "");
-  const [jpAddr, setJpAddr] = useState(initialPin?.jpAddr || prefill?.jpAddr || "");
-  const [krAddr, setKrAddr] = useState(initialPin?.krAddr || prefill?.krAddr || "");
-  const [memo, setMemo] = useState(initialPin?.memo || "");
-  const [links, setLinks] = useState(initialPin?.links?.length ? initialPin.links : [""]);
-  const [photos, setPhotos] = useState(Array.isArray(initialPin?.photos) ? initialPin.photos : []);
+  const [name, setName] = useState(initialData?.name || prefill?.name || "");
+  const [jpAddr, setJpAddr] = useState(initialData?.jpAddr || prefill?.jpAddr || "");
+  const [krAddr, setKrAddr] = useState(initialData?.krAddr || prefill?.krAddr || "");
+  const [memo, setMemo] = useState(initialData?.memo || "");
+  const [links, setLinks] = useState(Array.isArray(initialData?.links) && initialData.links.length ? initialData.links : [""]);
+  const [photos, setPhotos] = useState(Array.isArray(initialData?.photos) ? initialData.photos : []);
   const [photoIndex, setPhotoIndex] = useState(0);
 
   useEffect(() => {
-    if (initialPin) {
-      setName(initialPin.name || "");
-      setKrAddr(initialPin.krAddr || "");
-      setJpAddr(initialPin.jpAddr || "");
-      setMemo(initialPin.memo || "");
-      setLinks(initialPin.links?.length ? initialPin.links : [""]);
-      setPhotos(Array.isArray(initialPin.photos) ? initialPin.photos : []);
-      return;
-    }
     if (!prefill) return;
     if (!name && prefill.name) setName(prefill.name);
     if (!krAddr && prefill.krAddr) setKrAddr(prefill.krAddr);
     if (!jpAddr && prefill.jpAddr) setJpAddr(prefill.jpAddr);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPin?.id, prefill?.name, prefill?.krAddr, prefill?.jpAddr]);
+  }, [prefill?.name, prefill?.krAddr, prefill?.jpAddr]);
 
   const latlngText = initialLatLng
     ? fmtLatLng(initialLatLng.lat, initialLatLng.lng)
@@ -364,7 +354,7 @@ function PinModal({
 
   return (
     <Modal
-      title={initialPin ? "핀 수정" : "핀 저장"}
+      title={initialData ? "핀 수정" : "핀 저장"}
       onClose={onClose}
       footer={
         <>
@@ -375,10 +365,10 @@ function PinModal({
             className="primary"
             onClick={() => {
               onSave({
-                id: initialPin?.id,
+                id: initialData?.id,
                 cityId,
                 themeId,
-                name: name.trim(),
+                name: name.trim() || prefill?.name || "",
                 latlng: initialLatLng,
                 jpAddr: jpAddr.trim(),
                 krAddr: krAddr.trim(),
@@ -557,97 +547,98 @@ function PinModal({
 }
 
 
-function PinViewModal({ pin, cityName, themeName, onEdit, onDelete, onClose }) {
-  const [photoIndex, setPhotoIndex] = useState(0);
-  const photos = Array.isArray(pin?.photos) ? pin.photos : [];
-  const links = Array.isArray(pin?.links) ? pin.links : [];
+function PinViewModal({ pin, cities, themesByCity, onEdit, onDelete, onClose }) {
   if (!pin) return null;
+  const cityName = cities.find((c) => c.id === pin.cityId)?.name || "";
+  const themeName = (themesByCity[pin.cityId] || []).find((t) => t.id === pin.themeId)?.name || "";
+  const photos = Array.isArray(pin.photos) ? pin.photos : [];
+  const links = Array.isArray(pin.links) ? pin.links : [];
+  const [photoIndex, setPhotoIndex] = useState(0);
 
   return (
     <Modal
-      title={pin.name || "핀 정보"}
+      title={pin.name || "저장된 핀"}
       onClose={onClose}
       footer={
         <>
-          <button className="smallBtn" onClick={onEdit}>수정</button>
-          <button className="smallBtn danger" onClick={onDelete}>삭제</button>
+          <button className="ghost" onClick={onClose}>닫기</button>
+          <button className="smallBtn danger" onClick={() => onDelete(pin.id)}>삭제</button>
+          <button className="primary" onClick={() => onEdit(pin.id)}>수정</button>
         </>
       }
     >
-      <div className="field">
-        <label>도시 / 테마</label>
-        <div className="viewCard">{cityName || "-"}{themeName ? ` / ${themeName}` : ""}</div>
-      </div>
-
-      <div className="field">
-        <label>상호명</label>
-        <div className="viewCard">{pin.name || "(이름 없음)"}</div>
-      </div>
-
-      <div className="field">
-        <label>일본 주소</label>
-        <div className="viewCard">{pin.jpAddr || "-"}</div>
-      </div>
-
-      <div className="field">
-        <label>한국 주소</label>
-        <div className="viewCard">{pin.krAddr || "-"}</div>
-      </div>
-
-      <div className="field">
-        <label>구글(로드뷰 검색용)</label>
-        <div className="linkRow">
-          <input
-            value={(pin.krAddr || pin.jpAddr) ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pin.krAddr || pin.jpAddr)}` : ""}
-            readOnly
-          />
-          <button className="smallBtn" onClick={() => openGoogleByAddress(pin.krAddr || pin.jpAddr)}>
-            열기
-          </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {cityName ? <span className="badge">도시: {cityName}</span> : null}
+          {themeName ? <span className="badge">테마: {themeName}</span> : null}
         </div>
-      </div>
 
-      <div className="field">
-        <label>메모</label>
-        <div className="viewCard viewMultiline">{pin.memo || "-"}</div>
-      </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>상호명</label>
+          <div className="viewBox">{pin.name || "(이름 없음)"}</div>
+        </div>
 
-      <div className="field">
-        <label>링크</label>
-        {links.length ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {links.map((link, idx) => (
-              <div className="linkRow" key={idx}>
-                <input value={link} readOnly />
-                <button className="smallBtn" onClick={() => window.open(link, "_blank", "noopener,noreferrer")}>
-                  열기
-                </button>
-              </div>
-            ))}
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>일본 주소</label>
+          <div className="viewBox">{pin.jpAddr || "-"}</div>
+        </div>
+
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>한국 주소</label>
+          <div className="viewBox">{pin.krAddr || "-"}</div>
+        </div>
+
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>구글(로드뷰 검색용)</label>
+          <div className="linkRow">
+            <input
+              value={(pin.krAddr || pin.jpAddr) ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pin.krAddr || pin.jpAddr)}` : ""}
+              readOnly
+            />
+            <button className="smallBtn" onClick={() => openGoogleByAddress(pin.krAddr || pin.jpAddr)}>열기</button>
           </div>
-        ) : (
-          <div className="viewCard">-</div>
-        )}
-      </div>
+        </div>
 
-      <div className="field">
-        <label>사진</label>
-        {photos.length ? (
-          <div className="photoViewer">
-            <img className="photoViewerImg" src={photos[photoIndex]?.dataUrl} alt="" />
-            <div className="photoViewerMeta">
-              <div className="badge">{photos[photoIndex]?.name || `사진 ${photoIndex + 1}`}</div>
-              {photos.length > 1 ? (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className="smallBtn" onClick={() => setPhotoIndex((i) => (i - 1 + photos.length) % photos.length)}>이전</button>
-                  <button className="smallBtn" onClick={() => setPhotoIndex((i) => (i + 1) % photos.length)}>다음</button>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>메모</label>
+          <div className="viewBox" style={{ whiteSpace: "pre-wrap", minHeight: 44 }}>{pin.memo || "-"}</div>
+        </div>
+
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>링크</label>
+          {links.length ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {links.map((link, i) => (
+                <div key={i} className="linkRow">
+                  <input value={link} readOnly />
+                  <button className="smallBtn" onClick={() => window.open(link, "_blank", "noopener,noreferrer")}>열기</button>
                 </div>
-              ) : null}
+              ))}
             </div>
-          </div>
-        ) : (
-          <div className="viewCard">-</div>
-        )}
+          ) : (
+            <div className="viewBox">-</div>
+          )}
+        </div>
+
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>사진</label>
+          {photos.length ? (
+            <div className="thumbRow">
+              <img className="thumb" src={photos[photoIndex]?.dataUrl} alt="" />
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="badge">{photos[photoIndex]?.name}</div>
+                {photos.length > 1 ? (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="smallBtn" onClick={() => setPhotoIndex((i) => (i - 1 + photos.length) % photos.length)}>이전</button>
+                    <button className="smallBtn" onClick={() => setPhotoIndex((i) => (i + 1) % photos.length)}>다음</button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="viewBox">-</div>
+          )}
+        </div>
       </div>
     </Modal>
   );
@@ -1152,7 +1143,7 @@ const pickSearchResult = (r) => {
 
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [pinModalOpen, setPinModalOpen] = useState(false);
-  const [pinViewOpen, setPinViewOpen] = useState(false);
+  const [viewPinId, setViewPinId] = useState("");
   const [editingPinId, setEditingPinId] = useState("");
   const [draftLatLng, setDraftLatLng] = useState(null);
   const [pinPrefill, setPinPrefill] = useState({ name: "", jpAddr: "", krAddr: "" });
@@ -1247,6 +1238,8 @@ const pickSearchResult = (r) => {
   };
 
   const openPinModalAt = async (latlng) => {
+  setEditingPinId("");
+  setViewPinId("");
   setDraftLatLng(latlng);
   setPinPrefill({ name: "", jpAddr: "", krAddr: "" });
   setPinModalOpen(true);
@@ -1268,7 +1261,8 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
   const savePin = (data) => {
     const cityId = data.cityId || cities[0]?.id || "";
     const themeId = data.themeId || "";
-    const base = {
+    const p = {
+      id: data.id || uid(),
       cityId,
       themeId,
       name: data.name || "",
@@ -1278,27 +1272,12 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
       memo: data.memo || "",
       links: data.links || [],
       photos: data.photos || [],
+      createdAt: data.id ? (pins.find((x) => x.id === data.id)?.createdAt || Date.now()) : Date.now(),
     };
-
-    if (data.id) {
-      const nextPin = { ...base, id: data.id, createdAt: pins.find((x) => x.id === data.id)?.createdAt || Date.now() };
-      setPins((prev) => prev.map((x) => (x.id === data.id ? nextPin : x)));
-      setSelectedPinId(nextPin.id);
-      setPinViewOpen(true);
-      setEditingPinId("");
-      setFlyTarget([nextPin.latlng.lat, nextPin.latlng.lng]);
-      setFlyZoom(16);
-      return;
-    }
-
-    const p = {
-      id: uid(),
-      ...base,
-      createdAt: Date.now(),
-    };
-    setPins((prev) => [...prev, p]);
+    setPins((prev) => data.id ? prev.map((x) => (x.id === data.id ? p : x)) : [...prev, p]);
     setSelectedPinId(p.id);
-    setPinViewOpen(true);
+    setViewPinId(p.id);
+    setEditingPinId("");
     setFlyTarget([p.latlng.lat, p.latlng.lng]);
     setFlyZoom(16);
   };
@@ -1307,18 +1286,8 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
     if (!confirm("정말 삭제하시겠습니까?")) return;
     setPins((p) => p.filter((x) => x.id !== pinId));
     if (selectedPinId === pinId) setSelectedPinId("");
-    setPinViewOpen(false);
-    setEditingPinId("");
-  };
-
-  const startEditPin = (pinId) => {
-    const p = pins.find((x) => x.id === pinId);
-    if (!p) return;
-    setDraftLatLng(p.latlng);
-    setPinPrefill({ name: p.name || "", jpAddr: p.jpAddr || "", krAddr: p.krAddr || "" });
-    setEditingPinId(pinId);
-    setPinViewOpen(false);
-    setPinModalOpen(true);
+    if (viewPinId === pinId) setViewPinId("");
+    if (editingPinId === pinId) setEditingPinId("");
   };
 
   const selectPin = (pinId, doDelete = false) => {
@@ -1326,10 +1295,16 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
     const p = pins.find((x) => x.id === pinId);
     if (!p) return;
     setSelectedPinId(pinId);
-    setPinViewOpen(true);
+    setViewPinId(pinId);
     setFlyTarget([p.latlng.lat, p.latlng.lng]);
     setFlyZoom(17);
     setSidebarOpen(false);
+  };
+
+  const startEditPin = (pinId) => {
+    setEditingPinId(pinId);
+    setViewPinId("");
+    setPinModalOpen(true);
   };
 
   const requestMyLocation = () => {
@@ -1351,19 +1326,15 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
     );
   };
 
-  const currentSelectedPin = useMemo(
-    () => pins.find((x) => x.id === selectedPinId) || null,
-    [pins, selectedPinId]
-  );
-  const currentCityName = currentSelectedPin ? (cities.find((c) => c.id === currentSelectedPin.cityId)?.name || "") : "";
-  const currentThemeName = currentSelectedPin ? ((themesByCity[currentSelectedPin.cityId] || []).find((t) => t.id === currentSelectedPin.themeId)?.name || "") : "";
-
   const visiblePins = useMemo(() => {
     let list = pins;
     if (selectedCityId) list = list.filter((p) => p.cityId === selectedCityId);
     if (selectedThemeId) list = list.filter((p) => p.themeId === selectedThemeId);
     return list;
   }, [pins, selectedCityId, selectedThemeId]);
+
+  const viewingPin = useMemo(() => pins.find((p) => p.id === viewPinId) || null, [pins, viewPinId]);
+  const editingPin = useMemo(() => pins.find((p) => p.id === editingPinId) || null, [pins, editingPinId]);
 
   return (
     <div className="app">
@@ -1437,12 +1408,6 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
                   position={[p.latlng.lat, p.latlng.lng]}
                   eventHandlers={{ click: () => selectPin(p.id) }}
                 >
-                  <Popup>
-                    <div style={{ fontWeight: 900 }}>{p.name || "(이름 없음)"}</div>
-                    <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-                      {p.krAddr || p.jpAddr || fmtLatLng(p.latlng.lat, p.latlng.lng)}
-                    </div>
-                  </Popup>
                 </Marker>
                 {isSel ? (
                   <CircleMarker
@@ -1529,14 +1494,14 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
           />
         ) : null}
 
-        {pinViewOpen && currentSelectedPin ? (
+        {viewingPin ? (
           <PinViewModal
-            pin={currentSelectedPin}
-            cityName={currentCityName}
-            themeName={currentThemeName}
-            onEdit={() => startEditPin(currentSelectedPin.id)}
-            onDelete={() => deletePin(currentSelectedPin.id)}
-            onClose={() => setPinViewOpen(false)}
+            pin={viewingPin}
+            cities={cities}
+            themesByCity={themesByCity}
+            onEdit={startEditPin}
+            onDelete={deletePin}
+            onClose={() => setViewPinId("")}
           />
         ) : null}
 
@@ -1544,15 +1509,15 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
           <PinModal
             cities={cities}
             themesByCity={themesByCity}
-            initialCityId={editingPinId ? (pins.find((x) => x.id === editingPinId)?.cityId || selectedCityId || cities[0]?.id || "") : (selectedCityId || cities[0]?.id || "")}
+            initialCityId={editingPin?.cityId || selectedCityId || cities[0]?.id || ""}
             initialThemeId={
-              editingPinId
-                ? (pins.find((x) => x.id === editingPinId)?.themeId || "")
-                : (selectedThemeId || (themesByCity[selectedCityId || cities[0]?.id || ""]?.[0]?.id || ""))
+              editingPin?.themeId ||
+              selectedThemeId ||
+              (themesByCity[(editingPin?.cityId || selectedCityId || cities[0]?.id || "")]?.[0]?.id || "")
             }
-            initialLatLng={draftLatLng}
-            initialPin={editingPinId ? (pins.find((x) => x.id === editingPinId) || null) : null}
+            initialLatLng={editingPin?.latlng || draftLatLng}
             prefill={pinPrefill}
+            initialData={editingPin}
             onSave={savePin}
             onClose={() => {
               setPinModalOpen(false);

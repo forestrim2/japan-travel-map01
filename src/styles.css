@@ -321,35 +321,12 @@ html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Ro
 }
 
 
-.viewCard{
-  border:1px solid var(--line);
-  border-radius:14px;
+.viewBox{
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  background:#f9fafb;
   padding:10px 12px;
-  background:#fff;
   font-size:14px;
-}
-.viewMultiline{
-  white-space:pre-wrap;
-  word-break:break-word;
-  min-height:48px;
-}
-.photoViewer{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-.photoViewerImg{
-  width:100%;
-  max-height:280px;
-  object-fit:contain;
-  border:1px solid var(--line);
-  border-radius:16px;
-  background:#fafafa;
-}
-.photoViewerMeta{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  flex-wrap:wrap;
+  color:#111827;
+  line-height:1.5;
 }
