@@ -1,40 +1,41 @@
-import React, { useState } from "react"
+import React,{useState} from "react"
 import MapView from "./components/MapView"
+import PinModal from "./components/PinModal"
+import useLocalPins from "./hooks/useLocalPins"
 
-const LS_KEY = "travel_pin_map_v4"
+const LS_KEY="travel_map_pins_v5"
 
 export default function App(){
 
-  const [pins,setPins] = useState(()=>{
-    try{
-      const saved = localStorage.getItem(LS_KEY)
-      return saved ? JSON.parse(saved) : []
-    }catch{
-      return []
-    }
-  })
+ const {pins,add,update,remove}=useLocalPins(LS_KEY)
+ const [selected,setSelected]=useState(null)
 
-  function save(next){
-    setPins(next)
-    localStorage.setItem(LS_KEY,JSON.stringify(next))
-  }
+ return (
+  <div className="app">
 
-  function addPin(pin){
-    save([...pins,pin])
-  }
+   <MapView
+    pins={pins}
+    onAddPin={add}
+    onSelectPin={setSelected}
+   />
 
-  function updatePin(updated){
-    const next = pins.map(p=>p.id===updated.id?updated:p)
-    save(next)
-  }
+   {selected && (
+    <PinModal
+     pin={selected}
+     onClose={()=>setSelected(null)}
+     onSave={(p)=>{
+      update(p)
+      setSelected(p)
+     }}
+     onDelete={(id)=>{
+      if(confirm("정말 삭제하시겠습니까?")){
+       remove(id)
+       setSelected(null)
+      }
+     }}
+    />
+   )}
 
-  return (
-    <div className="app">
-      <MapView
-        pins={pins}
-        onAddPin={addPin}
-        onUpdatePin={updatePin}
-      />
-    </div>
-  )
+  </div>
+ )
 }
