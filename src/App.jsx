@@ -1,14 +1,14 @@
 import React,{useState} from "react"
 import MapView from "./components/MapView"
 import PinModal from "./components/PinModal"
-import useLocalPins from "./hooks/useLocalPins"
+import usePins from "./hooks/usePins"
 
-const LS_KEY="travel_map_pins_v5"
+const LS_KEY="travel_map_pins_v6"
 
 export default function App(){
 
- const {pins,add,update,remove}=useLocalPins(LS_KEY)
- const [selected,setSelected]=useState(null)
+ const {pins,add,update,remove} = usePins(LS_KEY)
+ const [selected,setSelected] = useState(null)
 
  return (
   <div className="app">
@@ -33,7 +33,7 @@ export default function App(){
        setSelected(null)
       }
      }}
-    />
+   />
    )}
 
   </div>

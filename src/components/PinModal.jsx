@@ -2,9 +2,9 @@ import React,{useState,useEffect} from "react"
 
 export default function PinModal({pin,onClose,onSave,onDelete}){
 
- const [edit,setEdit]=useState(false)
- const [name,setName]=useState("")
- const [memo,setMemo]=useState("")
+ const [edit,setEdit] = useState(false)
+ const [name,setName] = useState("")
+ const [memo,setMemo] = useState("")
 
  useEffect(()=>{
   setName(pin.name||"")
@@ -16,7 +16,7 @@ export default function PinModal({pin,onClose,onSave,onDelete}){
   setEdit(false)
  }
 
- return(
+ return (
   <div className="modalOverlay">
 
    <div className="modal">

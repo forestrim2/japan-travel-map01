@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css"
 import "./styles.css"
 
 createRoot(document.getElementById("root")).render(
- <React.StrictMode>
-  <App/>
- </React.StrictMode>
+  <React.StrictMode>
+    <App/>
+  </React.StrictMode>
 )

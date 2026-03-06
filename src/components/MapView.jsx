@@ -1,5 +1,5 @@
 import React from "react"
-import {MapContainer,TileLayer,Marker,useMapEvents} from "react-leaflet"
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet"
 import L from "leaflet"
 
 delete L.Icon.Default.prototype._getIconUrl
@@ -9,7 +9,7 @@ L.Icon.Default.mergeOptions({
  shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png"
 })
 
-function AddPinHandler({onAddPin}){
+function MapClickHandler({onAddPin}){
 
  useMapEvents({
   click(e){
@@ -41,13 +41,18 @@ export default function MapView({pins,onAddPin,onSelectPin}){
     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
    />
 
-   <AddPinHandler onAddPin={onAddPin}/>
+   <MapClickHandler onAddPin={onAddPin}/>
 
    {pins.map(p=>(
     <Marker
      key={p.id}
      position={[p.lat,p.lng]}
-     eventHandlers={{click:()=>onSelectPin(p)}}
+     eventHandlers={{
+      click:(e)=>{
+       e.originalEvent?.stopPropagation()
+       onSelectPin(p)
+      }
+     }}
     />
    ))}
 
