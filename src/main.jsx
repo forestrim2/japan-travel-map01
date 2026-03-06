@@ -92,7 +92,7 @@ function fmtLatLng(lat, lng) {
   return `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
 }
 function openGoogleByAddress(addr) {
-  const q = encodeURIComponent(String(addr ?? ""));
+  const q = encodeURIComponent(addr || "");
   window.open(
     `https://www.google.com/maps/search/?api=1&query=${q}`,
     "_blank",
@@ -169,7 +169,7 @@ function FlyTo({ target, zoom }) {
 function LongPressAndClick({ enabled, onPick }) {
   const pressTimer = useRef(null);
   const startPos = useRef(null);
-  const longPressed = useRef(false);
+  const longPressFired = useRef(false);
 
   const clearTimer = () => {
     if (pressTimer.current) {
@@ -178,66 +178,52 @@ function LongPressAndClick({ enabled, onPick }) {
     }
   };
 
-  const reset = () => {
+  const resetAll = () => {
     clearTimer();
     startPos.current = null;
-    longPressed.current = false;
   };
 
   useMapEvents({
     mousedown(e) {
       if (!enabled) return;
+      longPressFired.current = false;
       clearTimer();
-      longPressed.current = false;
       startPos.current = e.latlng;
       pressTimer.current = setTimeout(() => {
         if (startPos.current) {
-          longPressed.current = true;
+          longPressFired.current = true;
           onPick(startPos.current);
         }
-        clearTimer();
+        resetAll();
       }, 450);
     },
     mouseup() {
       clearTimer();
-      startPos.current = null;
-      setTimeout(() => {
-        longPressed.current = false;
-      }, 0);
     },
     touchstart(e) {
       if (!enabled) return;
+      longPressFired.current = false;
       clearTimer();
-      longPressed.current = false;
       startPos.current = e.latlng;
       pressTimer.current = setTimeout(() => {
         if (startPos.current) {
-          longPressed.current = true;
+          longPressFired.current = true;
           onPick(startPos.current);
         }
-        clearTimer();
+        resetAll();
       }, 450);
     },
     touchend() {
       clearTimer();
-      startPos.current = null;
-      setTimeout(() => {
-        longPressed.current = false;
-      }, 0);
     },
     click(e) {
-      if (!enabled || longPressed.current) return;
+      if (!enabled) return;
+      if (longPressFired.current) {
+        longPressFired.current = false;
+        return;
+      }
       onPick(e.latlng);
-      reset();
-    },
-    dragstart() {
-      reset();
-    },
-    movestart() {
-      reset();
-    },
-    mouseout() {
-      clearTimer();
+      resetAll();
     },
   });
 
@@ -647,17 +633,6 @@ function Sidebar({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
-          </button>
-        </div>
-
-        <div style={{marginTop:8}}>
-          <button
-            className="smallBtn"
-            style={{width:"100%"}}
-            disabled={!String(mapQuery).length}
-            onClick={() => openGoogleByAddress(mapQuery)}
-          >
-            구글에서 바로 검색
           </button>
         </div>
 
@@ -1384,11 +1359,12 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
         </button>
 
         <div className="fabs">
+          {addingPinMode ? <div className="addPinHint">지도를 누르거나 길게 눌러 핀을 추가하세요</div> : null}
           <button
-            className={`fab ${addingPinMode ? "active" : ""}`}
+            className={`fab ${addingPinMode ? "isActive" : ""}`}
             aria-label="핀 추가"
-            onClick={() => setAddingPinMode((p) => !p)}
-            title={addingPinMode ? "핀 추가 모드 해제" : "핀 추가"}
+            onClick={() => setAddingPinMode((v) => !v)}
+            title={addingPinMode ? "핀 추가 모드 끄기" : "핀 추가"}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path
@@ -1414,7 +1390,6 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
               />
             </svg>
           </button>
-          {addingPinMode ? <div className="addModeHint">길게 누르거나 탭해서 핀 추가</div> : null}
         </div>
 
         {addCatOpen ? (
