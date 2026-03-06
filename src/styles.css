@@ -282,8 +282,8 @@ html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Ro
 
 /* v2.2.2 - stronger add-mode indicator + recent chip delete */
 .fab.active{
-  border-color:#111;
-  background:#111;
+  border-color:#ef4444;
+  background:#ef4444;
   color:#fff;
 }
 .fab.active svg path{ stroke:#fff; }

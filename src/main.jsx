@@ -92,7 +92,7 @@ function fmtLatLng(lat, lng) {
   return `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
 }
 function openGoogleByAddress(addr) {
-  const q = encodeURIComponent(addr || "");
+  const q = encodeURIComponent(String(addr ?? ""));
   window.open(
     `https://www.google.com/maps/search/?api=1&query=${q}`,
     "_blank",
@@ -169,43 +169,75 @@ function FlyTo({ target, zoom }) {
 function LongPressAndClick({ enabled, onPick }) {
   const pressTimer = useRef(null);
   const startPos = useRef(null);
+  const longPressed = useRef(false);
 
-  const clear = () => {
+  const clearTimer = () => {
     if (pressTimer.current) {
       clearTimeout(pressTimer.current);
       pressTimer.current = null;
     }
+  };
+
+  const reset = () => {
+    clearTimer();
     startPos.current = null;
+    longPressed.current = false;
   };
 
   useMapEvents({
     mousedown(e) {
       if (!enabled) return;
+      clearTimer();
+      longPressed.current = false;
       startPos.current = e.latlng;
-      clear();
       pressTimer.current = setTimeout(() => {
-        if (startPos.current) onPick(startPos.current);
-        clear();
+        if (startPos.current) {
+          longPressed.current = true;
+          onPick(startPos.current);
+        }
+        clearTimer();
       }, 450);
     },
     mouseup() {
-      clear();
+      clearTimer();
+      startPos.current = null;
+      setTimeout(() => {
+        longPressed.current = false;
+      }, 0);
     },
     touchstart(e) {
       if (!enabled) return;
+      clearTimer();
+      longPressed.current = false;
       startPos.current = e.latlng;
-      clear();
       pressTimer.current = setTimeout(() => {
-        if (startPos.current) onPick(startPos.current);
-        clear();
+        if (startPos.current) {
+          longPressed.current = true;
+          onPick(startPos.current);
+        }
+        clearTimer();
       }, 450);
     },
     touchend() {
-      clear();
+      clearTimer();
+      startPos.current = null;
+      setTimeout(() => {
+        longPressed.current = false;
+      }, 0);
     },
     click(e) {
-      if (!enabled) return;
+      if (!enabled || longPressed.current) return;
       onPick(e.latlng);
+      reset();
+    },
+    dragstart() {
+      reset();
+    },
+    movestart() {
+      reset();
+    },
+    mouseout() {
+      clearTimer();
     },
   });
 
@@ -622,8 +654,8 @@ function Sidebar({
           <button
             className="smallBtn"
             style={{width:"100%"}}
-            disabled={!mapQuery.trim()}
-            onClick={() => openGoogleByAddress(mapQuery.trim())}
+            disabled={!String(mapQuery).length}
+            onClick={() => openGoogleByAddress(mapQuery)}
           >
             구글에서 바로 검색
           </button>
@@ -1353,10 +1385,10 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
 
         <div className="fabs">
           <button
-            className="fab"
+            className={`fab ${addingPinMode ? "active" : ""}`}
             aria-label="핀 추가"
-            onClick={() => setAddingPinMode(true)}
-            title="핀 추가"
+            onClick={() => setAddingPinMode((p) => !p)}
+            title={addingPinMode ? "핀 추가 모드 해제" : "핀 추가"}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path
@@ -1382,6 +1414,7 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
               />
             </svg>
           </button>
+          {addingPinMode ? <div className="addModeHint">길게 누르거나 탭해서 핀 추가</div> : null}
         </div>
 
         {addCatOpen ? (
