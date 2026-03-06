@@ -178,8 +178,7 @@ function LongPressAndClick({ enabled, onPick }) {
     }
   };
 
-  const resetAll = () => {
-    clearTimer();
+  const clearStart = () => {
     startPos.current = null;
   };
 
@@ -194,11 +193,16 @@ function LongPressAndClick({ enabled, onPick }) {
           longPressFired.current = true;
           onPick(startPos.current);
         }
-        resetAll();
-      }, 450);
+        clearTimer();
+        clearStart();
+      }, 500);
     },
     mouseup() {
       clearTimer();
+    },
+    mouseleave() {
+      clearTimer();
+      clearStart();
     },
     touchstart(e) {
       if (!enabled) return;
@@ -210,11 +214,16 @@ function LongPressAndClick({ enabled, onPick }) {
           longPressFired.current = true;
           onPick(startPos.current);
         }
-        resetAll();
-      }, 450);
+        clearTimer();
+        clearStart();
+      }, 500);
     },
     touchend() {
       clearTimer();
+    },
+    touchcancel() {
+      clearTimer();
+      clearStart();
     },
     click(e) {
       if (!enabled) return;
@@ -223,7 +232,8 @@ function LongPressAndClick({ enabled, onPick }) {
         return;
       }
       onPick(e.latlng);
-      resetAll();
+      clearTimer();
+      clearStart();
     },
   });
 
@@ -633,6 +643,17 @@ function Sidebar({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
+          </button>
+        </div>
+
+        <div style={{marginTop:8}}>
+          <button
+            className="smallBtn"
+            style={{width:"100%"}}
+            disabled={!mapQuery.trim()}
+            onClick={() => openGoogleByAddress(mapQuery.trim())}
+          >
+            구글에서 바로 검색
           </button>
         </div>
 
@@ -1359,9 +1380,9 @@ setPinPrefill((p) => ({ ...p, krAddr: kr || p.krAddr, jpAddr: jp || p.jpAddr }))
         </button>
 
         <div className="fabs">
-          {addingPinMode ? <div className="addPinHint">지도를 누르거나 길게 눌러 핀을 추가하세요</div> : null}
+          {addingPinMode ? <div className="addModeHint">핀 추가 모드</div> : null}
           <button
-            className={`fab ${addingPinMode ? "isActive" : ""}`}
+            className={`fab ${addingPinMode ? "active" : ""}`}
             aria-label="핀 추가"
             onClick={() => setAddingPinMode((v) => !v)}
             title={addingPinMode ? "핀 추가 모드 끄기" : "핀 추가"}

@@ -263,16 +263,18 @@ html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Ro
 .modalBody{ overflow:auto; }
 .modalFooter{ flex:0 0 auto; }
 .fab.active{
-  border-color:#111;
-  transform: translateZ(0);
+  border-color:#dc2626 !important;
+  background:#dc2626 !important;
+  color:#fff !important;
 }
 .addModeHint{
   position:absolute;
   right:68px;
   bottom:24px;
   z-index:1100;
-  background:#fff;
-  border:1px solid var(--line);
+  background:#dc2626;
+  color:#fff;
+  border:1px solid #dc2626;
   border-radius:999px;
   padding:8px 12px;
   font-weight:900;
@@ -286,7 +288,7 @@ html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Ro
   background:#111;
   color:#fff;
 }
-.fab.active svg path{ stroke:#fff; }
+.fab.active svg path{ stroke:#fff !important; }
 .recentChip{
   display:flex;
   align-items:center;
@@ -318,25 +320,4 @@ html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Ro
   border-radius:10px;
   font-size:13px;
   color: rgba(0,0,0,0.65);
-}
-
-
-.fab.isActive{
-  background:#e53935 !important;
-  color:#fff !important;
-  border-color:#e53935 !important;
-}
-
-.addPinHint{
-  position:absolute;
-  right:0;
-  bottom:64px;
-  background:rgba(229,57,53,.95);
-  color:#fff;
-  padding:8px 10px;
-  border-radius:10px;
-  font-size:12px;
-  font-weight:700;
-  box-shadow:0 8px 24px rgba(0,0,0,.18);
-  white-space:nowrap;
 }
